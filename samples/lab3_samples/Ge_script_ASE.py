@@ -5,7 +5,7 @@ import os
 import ase
 import ase.spacegroup
 import ase.io
-from ase.calculators.espresso import Espresso
+from ase.calculators.espresso import Espresso, EspressoProfile
 from ase.units import create_units
 
 # ASE's `ase.units` is a useful tool for working with unit conversions and physical constants
@@ -50,9 +50,10 @@ def make_calculator(nk: int, ecut: float) -> Espresso:
     """
     # We need to tell ASE where to find `pw.x` (the Quantum Espresso command)
     # since it is in a specific place we put it:
-    os.environ[
-        "ASE_ESPRESSO_COMMAND"
-    ] = f"mpirun -np 2 {os.environ['QE_PW_COMMAND']} -in PREFIX.pwi > PREFIX.pwo"
+    profile = EspressoProfile(
+        command=f"mpirun -np 2 {os.environ['QE_PW_COMMAND']}",
+        pseudo_dir=os.environ["QE_POTENTIALS"],
+    )
     #       ^       ^               ^                |___________________________|
     #       |       |               |                 \- from ASE's espresso.py default command
     #       |       |               |                    PREFIX is replaced by ASE with the name of ASE's files
@@ -63,10 +64,15 @@ def make_calculator(nk: int, ecut: float) -> Espresso:
     #       |
     #       \-  Run QE on multiple CPU cores using MPI
 
+    workdir = os.path.join(os.environ["WORKDIR"], "Lab3", "test")
+    os.makedirs(workdir, exist_ok=True)
+
     return Espresso(
+        profile=profile,
         # Specify, using this special options for ASE, which pseudopotentials to use for each kind of atom:
         pseudopotentials={"Ge": "ge_lda_v1.4.uspp.F.UPF"},
         # Tell ASE where to tell QE to find pseudopotentials:
+        # (kept for clarity; profile.pseudo_dir is already set)
         pseudo_dir=os.environ["QE_POTENTIALS"],
         # ASE has a special option for setting up the k-point mesh:
         # (See https://wiki.fysik.dtu.dk/ase/ase/calculators/espresso.html#parameters)
@@ -75,7 +81,7 @@ def make_calculator(nk: int, ecut: float) -> Espresso:
         # `outdir`, which we set in the labutil version of this example,
         # are not set: ASE handles input and output management automatically
         # as part of the calculator. Instead, we just tell ASE where we want it to run:
-        directory=os.environ["WORKDIR"] + "/Lab3/test/",
+        directory=workdir,
         # You can change this ^ on the calculator later (`calc.directory = "/something/somewhere/"`) if you want to.
         # !!! If something goes wrong, you can look at `espresso.pwo` in `directory` to see the output of QE !!!
         #
